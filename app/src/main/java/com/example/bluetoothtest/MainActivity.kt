@@ -12,19 +12,36 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Message
 import android.util.Log
 import android.widget.Button
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import com.example.bluetoothtest.BTCommService.Companion.STATE_CONNECTED
+import com.example.bluetoothtest.BTCommService.Companion.STATE_NONE
+import com.google.android.material.internal.ContextUtils.getActivity
 
 
 class MainActivity : AppCompatActivity() {
+    private var mConnectedDeviceName: String = ""
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        val bluetoothManager: BluetoothManager = getSystemService(BluetoothManager::class.java)
+        bluetoothAdapter = bluetoothManager.getAdapter()
+        if (bluetoothAdapter == null) {
+            println("No bluetooth")
+            // Device doesn't support Bluetooth
+        } else {
+            println("bluetooth")
+        }
 
         // Register for broadcasts when a device is discovered.
         val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
@@ -59,6 +76,10 @@ class MainActivity : AppCompatActivity() {
         //TODO: look at result code
         val testStop = "test"
     }
+
+    private var bluetoothAdapter: BluetoothAdapter? = null
+
+    private var btService: BTCommService? = null
 
     private val requestMultiplePermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -95,6 +116,41 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.broadcastBluetoothButton).setOnClickListener {
             broadcastBluetooth()
         }
+
+        findViewById<Button>(R.id.connectButton).setOnClickListener {
+            connectDevice("B4:F1:DA:2B:F4:E2")
+            // Pixel 2 MAC
+        }
+
+        btService?.let {
+            if (it.mState == STATE_NONE) {
+                btService?.start()
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+
+        btService = BTCommService(this, mHandler)
+    }
+
+    private fun sendMessage(msg: String) {
+        if (btService?.mState != STATE_CONNECTED) {
+            println("mState is NOT_CONNECTED")
+            return
+        }
+
+        btService?.write(msg.toByteArray())
+    }
+
+    private fun connectDevice(address: String) {
+
+        val device = bluetoothAdapter?.getRemoteDevice(address)
+        device?.let {
+            mConnectedDeviceName = it.name
+            btService?.connect(device, false)
+        }
     }
 
     private fun broadcastBluetooth() {
@@ -105,15 +161,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun lookForBluetooth() {
-        val bluetoothManager: BluetoothManager = getSystemService(BluetoothManager::class.java)
-        val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.getAdapter()
-        if (bluetoothAdapter == null) {
-            println("No bluetooth")
-            // Device doesn't support Bluetooth
-        } else {
-            println("bluetooth")
-        }
-
         // ask for / Allows permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // Android 12 +
@@ -133,10 +180,10 @@ class MainActivity : AppCompatActivity() {
 
             //Turns bluetooth on if it's off
             if (bluetoothAdapter?.isEnabled == false) {
-                bluetoothAdapter.enable()
+                bluetoothAdapter?.enable()
             }
             if (bluetoothAdapter?.isDiscovering == true) {
-                bluetoothAdapter.cancelDiscovery()
+                bluetoothAdapter?.cancelDiscovery()
             }
             bluetoothAdapter?.startDiscovery()
 
@@ -147,7 +194,7 @@ class MainActivity : AppCompatActivity() {
             }
         } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
             if (bluetoothAdapter?.isDiscovering == true) {
-                bluetoothAdapter.cancelDiscovery()
+                bluetoothAdapter?.cancelDiscovery()
             }
             bluetoothAdapter?.startDiscovery()
         } else {
@@ -160,5 +207,52 @@ class MainActivity : AppCompatActivity() {
 
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(receiver)
+        btService?.stop()
     }
+
+
+    private val mHandler: Handler = object : Handler() {
+        override fun handleMessage(msg: Message) {
+            when (msg.what) {
+                Constants.MESSAGE_STATE_CHANGE -> when (msg.arg1) {
+                    STATE_CONNECTED -> {
+                        println("title_connected_to $mConnectedDeviceName")
+                    }
+                    BTCommService.STATE_CONNECTING -> println("title_connecting")
+                    BTCommService.STATE_LISTEN, STATE_NONE -> println("title_not_connected")
+                }
+                Constants.MESSAGE_WRITE -> {
+                    val writeBuf = msg.obj as ByteArray
+                    // construct a string from the buffer
+                    val writeMessage = String(writeBuf)
+//                    mConversationArrayAdapter.add("Me:  $writeMessage")
+                }
+                Constants.MESSAGE_READ -> {
+                    val readBuf = msg.obj as ByteArray
+                    // construct a string from the valid bytes in the buffer
+                    val readMessage = String(readBuf, 0, msg.arg1)
+//                    mConversationArrayAdapter.add(mConnectedDeviceName + ":  " + readMessage)
+                }
+                Constants.MESSAGE_DEVICE_NAME -> {
+                    // save the connected device's name
+//                    mConnectedDeviceName = msg.data.getString(Constants.DEVICE_NAME)
+//                    if (null != activity) {
+//                        Toast.makeText(
+//                            activity, "Connected to "
+//                                    + mConnectedDeviceName, Toast.LENGTH_SHORT
+//                        ).show()
+//                    }
+                    println("Message device name: $mConnectedDeviceName")
+                }
+                Constants.MESSAGE_TOAST -> {
+//                    Toast.makeText(
+//                        this, msg.data.getString(Constants.TOAST),
+//                        Toast.LENGTH_SHORT
+//                    ).show()
+                    println("very sad toast: $mConnectedDeviceName")
+                }
+            }
+        }
+    }
+
 }

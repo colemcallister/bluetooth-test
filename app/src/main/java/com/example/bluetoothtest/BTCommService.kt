@@ -119,10 +119,7 @@ class BTCommService(context: Context?, handler: Handler) {
      */
     @Synchronized
     fun connect(device: BluetoothDevice, secure: Boolean) {
-        Log.d(
-            TAG,
-            "connect to: $device"
-        )
+        println("connect to: $device")
 
         // Cancel any thread attempting to make a connection
         if (mState == STATE_CONNECTING) {
@@ -153,10 +150,7 @@ class BTCommService(context: Context?, handler: Handler) {
      */
     @Synchronized
     fun connected(socket: BluetoothSocket?, device: BluetoothDevice, socketType: String) {
-        Log.d(
-            TAG,
-            "connected, Socket Type:$socketType"
-        )
+        println("connected, Socket Type:$socketType")
 
         // Cancel the thread that completed the connection
         if (mConnectThread != null) {
@@ -332,7 +326,7 @@ class BTCommService(context: Context?, handler: Handler) {
                 if (socket != null) {
                     synchronized(this) {
                         when (mState) {
-                            STATE_LISTEN, STATE_CONNECTING ->                                 // Situation normal. Start the connected thread.
+                            STATE_LISTEN, STATE_CONNECTING ->                                  // Situation normal. Start the connected thread.
                                 connected(
                                     socket, socket.getRemoteDevice(),
                                     mSocketType
