@@ -2,18 +2,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Finding other bluetooth devices -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- Required for Android 11 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <!-- broadcasting to other bluetooth devices -->
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <!-- This is got already paired devices. Might not need -->
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- Allows turning on and off bluetooth -->
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <!-- scan? -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" />
+
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
 
+    <!-- This is got already paired devices. Might not need -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Finding other bluetooth devices -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
 
     <application
