@@ -2,10 +2,9 @@ package com.example.bluetoothtest
 
 import android.Manifest
 import android.app.Activity
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
+import android.bluetooth.*
 import android.content.BroadcastReceiver
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -18,9 +17,66 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.io.IOException
+import java.util.*
 
 
 class MainActivity : AppCompatActivity() {
+
+    /**
+     * Connect code
+     */
+
+    private inner class AcceptThread : Thread() {
+
+        private val CONNECT_THREAD_NAME = "We have a name"
+        private val CONNECT_THREAD_UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
+        private var bluetoothAdapter: BluetoothAdapter? = null
+
+        init {
+            bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        }
+
+        private val mmServerSocket: BluetoothServerSocket? by lazy(LazyThreadSafetyMode.NONE) {
+            bluetoothAdapter?.listenUsingInsecureRfcommWithServiceRecord(CONNECT_THREAD_NAME, CONNECT_THREAD_UUID)
+        }
+
+        override fun run() {
+            // Keep listening until exception occurs or a socket is returned.
+            var shouldLoop = true
+            while (shouldLoop) {
+                val socket: BluetoothSocket? = try {
+                    mmServerSocket?.accept()
+                } catch (e: IOException) {
+                    println("Socket's accept() method failed")
+                    Log.e(TAG, "Socket's accept() method failed", e)
+                    shouldLoop = false
+                    null
+                }
+                socket?.also {
+                    println("you are connected from the accept thread! Congrats!")
+                    //TODO: Do something here
+//                    manageMyConnectedSocket(it)
+                    mmServerSocket?.close()
+                    shouldLoop = false
+                }
+            }
+        }
+
+        // Closes the connect socket and causes the thread to finish.
+        fun cancel() {
+            try {
+                mmServerSocket?.close()
+            } catch (e: IOException) {
+                Log.e(TAG, "Could not close the connect socket", e)
+            }
+        }
+    }
+
+    /**
+     * End connect code
+     */
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -55,6 +111,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private var acceptThread: AcceptThread? = null
+
     private var broadcastBluetooth = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         //TODO: look at result code
         val testStop = "test"
@@ -88,6 +146,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
+        if (acceptThread == null) {
+            acceptThread = AcceptThread()
+        }
+
         findViewById<Button>(R.id.lookForBluetoothButton).setOnClickListener {
             lookForBluetooth()
         }
@@ -95,6 +157,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.broadcastBluetoothButton).setOnClickListener {
             broadcastBluetooth()
         }
+
+        findViewById<Button>(R.id.openServerSocketButton).setOnClickListener {
+            acceptThread?.start()
+        }
+
     }
 
     private fun broadcastBluetooth() {
@@ -157,6 +224,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+
+        acceptThread?.cancel()
 
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(receiver)

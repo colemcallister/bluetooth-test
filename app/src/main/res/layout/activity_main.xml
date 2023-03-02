@@ -20,4 +20,18 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/openServerSocketButton"
+        android:text="open server socket"
+        app:layout_constraintTop_toBottomOf="@id/broadcastBluetoothButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/connectAsClientSocketButton"
+        android:text="Connect as client"
+        app:layout_constraintTop_toBottomOf="@id/openServerSocketButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
