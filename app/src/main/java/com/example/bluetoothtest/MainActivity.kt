@@ -26,11 +26,55 @@ class MainActivity : AppCompatActivity() {
     /**
      * Connect code
      */
+    private val BT_UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
+
+    private inner class ConnectThread(device: BluetoothDevice) : Thread() {
+
+        private var bluetoothAdapter: BluetoothAdapter? = null
+
+        private val mmSocket: BluetoothSocket? by lazy(LazyThreadSafetyMode.NONE) {
+            device.createRfcommSocketToServiceRecord(BT_UUID)
+        }
+
+        init {
+            bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        }
+
+        public override fun run() {
+            // Cancel discovery because it otherwise slows down the connection.
+            bluetoothAdapter?.cancelDiscovery()
+
+            mmSocket?.let { socket ->
+                // Connect to the remote device through the socket. This call blocks
+                // until it succeeds or throws an exception.
+                try {
+                  socket.connect()
+                } catch (e: IOException) {
+                    println("Socket's connect() method failed")
+                    return
+                }
+
+                // The connection attempt succeeded. Perform work associated with
+                // the connection in a separate thread.
+                println("Client connected to server socket! Good job!")
+                //TODO: Do something now that we are connected
+//                manageMyConnectedSocket(socket)
+            }
+        }
+
+        // Closes the client socket and causes the thread to finish.
+        fun cancel() {
+            try {
+                mmSocket?.close()
+            } catch (e: IOException) {
+                Log.e(TAG, "Could not close the client socket", e)
+            }
+        }
+    }
 
     private inner class AcceptThread : Thread() {
 
         private val CONNECT_THREAD_NAME = "We have a name"
-        private val CONNECT_THREAD_UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
         private var bluetoothAdapter: BluetoothAdapter? = null
 
         init {
@@ -38,7 +82,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         private val mmServerSocket: BluetoothServerSocket? by lazy(LazyThreadSafetyMode.NONE) {
-            bluetoothAdapter?.listenUsingInsecureRfcommWithServiceRecord(CONNECT_THREAD_NAME, CONNECT_THREAD_UUID)
+            bluetoothAdapter?.listenUsingInsecureRfcommWithServiceRecord(CONNECT_THREAD_NAME, BT_UUID)
         }
 
         override fun run() {
@@ -81,6 +125,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        val bluetoothManager: BluetoothManager = getSystemService(BluetoothManager::class.java)
+        bluetoothAdapter = bluetoothManager.getAdapter()
+        if (bluetoothAdapter == null) {
+            println("No bluetooth")
+            // Device doesn't support Bluetooth
+        } else {
+            println("bluetooth")
+        }
+
 
         // Register for broadcasts when a device is discovered.
         val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
@@ -112,6 +165,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var acceptThread: AcceptThread? = null
+    private var connectThread: ConnectThread? = null
+    private var bluetoothAdapter: BluetoothAdapter? = null
 
     private var broadcastBluetooth = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         //TODO: look at result code
@@ -162,6 +217,17 @@ class MainActivity : AppCompatActivity() {
             acceptThread?.start()
         }
 
+        findViewById<Button>(R.id.connectAsClientSocketButton).setOnClickListener {
+            connectThread?.cancel()
+
+            //TODO: Find mac address
+            val device = bluetoothAdapter?.getRemoteDevice("B4:F1:DA:2B:F4:E2")
+            device?.let {
+                println("creating connect thread")
+                connectThread = ConnectThread(device)
+                connectThread?.start()
+            }
+        }
     }
 
     private fun broadcastBluetooth() {
@@ -172,14 +238,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun lookForBluetooth() {
-        val bluetoothManager: BluetoothManager = getSystemService(BluetoothManager::class.java)
-        val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.getAdapter()
-        if (bluetoothAdapter == null) {
-            println("No bluetooth")
-            // Device doesn't support Bluetooth
-        } else {
-            println("bluetooth")
-        }
+
 
         // ask for / Allows permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -200,10 +259,10 @@ class MainActivity : AppCompatActivity() {
 
             //Turns bluetooth on if it's off
             if (bluetoothAdapter?.isEnabled == false) {
-                bluetoothAdapter.enable()
+                bluetoothAdapter?.enable()
             }
             if (bluetoothAdapter?.isDiscovering == true) {
-                bluetoothAdapter.cancelDiscovery()
+                bluetoothAdapter?.cancelDiscovery()
             }
             bluetoothAdapter?.startDiscovery()
 
@@ -214,7 +273,7 @@ class MainActivity : AppCompatActivity() {
             }
         } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
             if (bluetoothAdapter?.isDiscovering == true) {
-                bluetoothAdapter.cancelDiscovery()
+                bluetoothAdapter?.cancelDiscovery()
             }
             bluetoothAdapter?.startDiscovery()
         } else {
@@ -226,6 +285,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
 
         acceptThread?.cancel()
+        connectThread?.cancel()
 
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(receiver)
