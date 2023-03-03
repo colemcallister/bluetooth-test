@@ -34,4 +34,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/sendMessageButton"
+        android:text="Send message"
+        app:layout_constraintTop_toBottomOf="@id/connectAsClientSocketButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

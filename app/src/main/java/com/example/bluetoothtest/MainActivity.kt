@@ -11,6 +11,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Message
 import android.util.Log
 import android.widget.Button
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +20,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.*
 
 
@@ -26,6 +30,76 @@ class MainActivity : AppCompatActivity() {
     /**
      * Connect code
      */
+    private val handler: Handler = object : Handler() {
+        override fun handleMessage(msg: Message) {
+            println("We got a message")
+        }
+    }
+
+    private inner class ConnectedThread(private val mmSocket: BluetoothSocket) : Thread() {
+
+        val MESSAGE_READ: Int = 0
+        val MESSAGE_WRITE: Int = 1
+        val MESSAGE_TOAST: Int = 2
+
+        private val mmInStream: InputStream = mmSocket.inputStream
+        private val mmOutStream: OutputStream = mmSocket.outputStream
+        private val mmBuffer: ByteArray = ByteArray(1024) // mmBuffer store for the stream
+
+        override fun run() {
+            var numBytes: Int // bytes returned from read()
+
+            // Keep listening to the InputStream until an exception occurs.
+            while (true) {
+                // Read from the InputStream.
+                numBytes = try {
+                    mmInStream.read(mmBuffer)
+                } catch (e: IOException) {
+                    Log.d("MY_APP_DEBUG_TAG", "Input stream was disconnected", e)
+                    break
+                }
+
+                // Send the obtained bytes to the UI activity.
+                val readMsg = handler.obtainMessage(
+                    MESSAGE_READ, numBytes, -1,
+                    mmBuffer)
+                readMsg.sendToTarget()
+            }
+        }
+
+        // Call this from the main activity to send data to the remote device.
+        fun write(bytes: ByteArray) {
+            try {
+                mmOutStream.write(bytes)
+            } catch (e: IOException) {
+                Log.e("MY_APP_DEBUG_TAG", "Error occurred when sending data", e)
+
+                // Send a failure message back to the activity.
+                val writeErrorMsg = handler.obtainMessage(MESSAGE_TOAST)
+                val bundle = Bundle().apply {
+                    putString("toast", "Couldn't send data to the other device")
+                }
+                writeErrorMsg.data = bundle
+                handler.sendMessage(writeErrorMsg)
+                return
+            }
+
+            // Share the sent message with the UI activity.
+            val writtenMsg = handler.obtainMessage(
+                MESSAGE_WRITE, -1, -1, mmBuffer)
+            writtenMsg.sendToTarget()
+        }
+
+        // Call this method from the main activity to shut down the connection.
+        fun cancel() {
+            try {
+                mmSocket.close()
+            } catch (e: IOException) {
+                Log.e("MY_APP_DEBUG_TAG", "Could not close the connect socket", e)
+            }
+        }
+    }
+
     private val BT_UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
 
     private inner class ConnectThread(device: BluetoothDevice) : Thread() {
@@ -57,8 +131,8 @@ class MainActivity : AppCompatActivity() {
                 // The connection attempt succeeded. Perform work associated with
                 // the connection in a separate thread.
                 println("Client connected to server socket! Good job!")
-                //TODO: Do something now that we are connected
-//                manageMyConnectedSocket(socket)
+                connectedThread?.cancel()
+                connectedThread = ConnectedThread(socket)
             }
         }
 
@@ -99,8 +173,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 socket?.also {
                     println("you are connected from the accept thread! Congrats!")
-                    //TODO: Do something here
-//                    manageMyConnectedSocket(it)
+                    connectedThread?.cancel()
+                    connectedThread = ConnectedThread(socket)
+
                     mmServerSocket?.close()
                     shouldLoop = false
                 }
@@ -166,6 +241,7 @@ class MainActivity : AppCompatActivity() {
 
     private var acceptThread: AcceptThread? = null
     private var connectThread: ConnectThread? = null
+    private var connectedThread: ConnectedThread? = null
     private var bluetoothAdapter: BluetoothAdapter? = null
 
     private var broadcastBluetooth = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -228,6 +304,11 @@ class MainActivity : AppCompatActivity() {
                 connectThread?.start()
             }
         }
+
+        findViewById<Button>(R.id.sendMessageButton).setOnClickListener {
+            connectedThread?.start()
+            connectedThread?.write("Hello world".toByteArray())
+        }
     }
 
     private fun broadcastBluetooth() {
@@ -286,6 +367,7 @@ class MainActivity : AppCompatActivity() {
 
         acceptThread?.cancel()
         connectThread?.cancel()
+        connectedThread?.cancel()
 
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(receiver)
