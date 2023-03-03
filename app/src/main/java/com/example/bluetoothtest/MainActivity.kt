@@ -28,8 +28,6 @@ class MainActivity : AppCompatActivity() {
     private var bluetoothService : BluetoothLEConnectService? = null
     private var selectedDeviceAddress: String? = null
 
-    private var bluetoothGattServer: BluetoothGattServer? = null
-
     private val handler = Handler()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -143,102 +141,13 @@ class MainActivity : AppCompatActivity() {
      * 2. Create GATT service
      *
      ********************************************************************************************/
-    private val registeredDevices = mutableSetOf<BluetoothDevice>()
 
     private fun startServer() {
-        bluetoothGattServer = bluetoothManager?.openGattServer(this, gattServerCallback)
-        bluetoothGattServer?.addService(createGattService())
-    }
-
-    private fun createGattService(): BluetoothGattService {
-        val service = BluetoothGattService(SERVICE_UUID,
-            BluetoothGattService.SERVICE_TYPE_PRIMARY)
-
-        // Current Time characteristic
-        val contentCharacteristic = BluetoothGattCharacteristic(
-            CONTENT_CHARACTERISTIC_UUID,
-            //Read-only characteristic, supports notifications
-            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_READ)
-
-        //TODO: Is descriptor needed?
-        val configDescriptor = BluetoothGattDescriptor(SERVICE_UUID,
-            //Read/write descriptor
-            BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE)
-        contentCharacteristic.addDescriptor(configDescriptor)
-
-
-        service.addCharacteristic(contentCharacteristic)
-
-        return service
+        bluetoothService?.startServer()
     }
 
     private fun startAdvertising() {
-        val bluetoothLeAdvertiser: BluetoothLeAdvertiser? =
-            bluetoothManager?.adapter?.bluetoothLeAdvertiser
-
-        bluetoothLeAdvertiser?.let {
-            val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
-                .setConnectable(true)
-                .setTimeout(0)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-                .build()
-
-            val data = AdvertiseData.Builder()
-                .setIncludeDeviceName(false)
-                .setIncludeTxPowerLevel(false)
-                .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                .build()
-
-            it.startAdvertising(settings, data, advertiseCallback)
-        } ?: Log.w(TAG, "Failed to create advertiser")
-    }
-
-    private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            Log.i(TAG, "LE Advertise Started.")
-        }
-
-        override fun onStartFailure(errorCode: Int) {
-            Log.w(TAG, "LE Advertise Failed: $errorCode")
-        }
-    }
-
-    private val gattServerCallback = object : BluetoothGattServerCallback() {
-
-        override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                println("BluetoothDevice CONNECTED: $device")
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                println("BluetoothDevice DISCONNECTED: $device")
-                //Remove device from any active subscriptions
-                registeredDevices.remove(device)
-            }
-        }
-
-        override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int,
-                                                 characteristic: BluetoothGattCharacteristic) {
-            when (characteristic.uuid) {
-                CONTENT_CHARACTERISTIC_UUID -> {
-                    Log.i(TAG, "Read CurrentTime")
-                    bluetoothGattServer?.sendResponse(device,
-                        requestId,
-                        BluetoothGatt.GATT_SUCCESS,
-                        0,
-                        "send something else".toByteArray())
-                }
-                else -> {
-                    // Invalid characteristic
-                    Log.w(TAG, "Invalid Characteristic Read: " + characteristic.uuid)
-                    bluetoothGattServer?.sendResponse(device,
-                        requestId,
-                        BluetoothGatt.GATT_FAILURE,
-                        0,
-                        null)
-                }
-            }
-        }
+        bluetoothService?.startAdvertising()
     }
 
     /*******************************************************************************************
