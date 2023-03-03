@@ -66,6 +66,7 @@ class BluetoothLEConnectService : Service() {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 // successfully connected to the GATT Server
                 connectionState = STATE_CONNECTED
+                gatt.discoverServices()
                 broadcastUpdate(ACTION_GATT_CONNECTED)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // disconnected from the GATT Server
