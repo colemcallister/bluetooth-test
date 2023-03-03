@@ -239,59 +239,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
-        override fun onDescriptorReadRequest(device: BluetoothDevice, requestId: Int, offset: Int,
-                                             descriptor: BluetoothGattDescriptor) {
-            if (CONTENT_CONFIG_DESCRIPTION_UUID == descriptor.uuid) {
-                Log.d(TAG, "Config descriptor read")
-                val returnValue = if (registeredDevices.contains(device)) {
-                    BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                } else {
-                    BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
-                }
-                bluetoothGattServer?.sendResponse(device,
-                    requestId,
-                    BluetoothGatt.GATT_SUCCESS,
-                    0,
-                    returnValue)
-            } else {
-                Log.w(TAG, "Unknown descriptor read request")
-                bluetoothGattServer?.sendResponse(device,
-                    requestId,
-                    BluetoothGatt.GATT_FAILURE,
-                    0, null)
-            }
-        }
-
-        override fun onDescriptorWriteRequest(device: BluetoothDevice, requestId: Int,
-                                              descriptor: BluetoothGattDescriptor,
-                                              preparedWrite: Boolean, responseNeeded: Boolean,
-                                              offset: Int, value: ByteArray) {
-            if (CONTENT_CONFIG_DESCRIPTION_UUID == descriptor.uuid) {
-                if (Arrays.equals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE, value)) {
-                    Log.d(TAG, "Subscribe device to notifications: $device")
-                    registeredDevices.add(device)
-                } else if (Arrays.equals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE, value)) {
-                    Log.d(TAG, "Unsubscribe device from notifications: $device")
-                    registeredDevices.remove(device)
-                }
-
-                if (responseNeeded) {
-                    bluetoothGattServer?.sendResponse(device,
-                        requestId,
-                        BluetoothGatt.GATT_SUCCESS,
-                        0, null)
-                }
-            } else {
-                Log.w(TAG, "Unknown descriptor write request")
-                if (responseNeeded) {
-                    bluetoothGattServer?.sendResponse(device,
-                        requestId,
-                        BluetoothGatt.GATT_FAILURE,
-                        0, null)
-                }
-            }
-        }
     }
 
     /*******************************************************************************************
@@ -413,9 +360,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         val CONTENT_CHARACTERISTIC_UUID: UUID = UUID.fromString("4AED2DB1-2537-4D7B-A2AA-46708B4F7563")
         val SERVICE_UUID: UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
-
-        //TODO: What is this? Is this the same as iOS content share uuid?
-        val CONTENT_CONFIG_DESCRIPTION_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
         // Stops scanning after 10 seconds.
         val SCAN_PERIOD: Long = 10000
