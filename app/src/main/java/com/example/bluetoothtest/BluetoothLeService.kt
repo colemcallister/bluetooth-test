@@ -1,13 +1,11 @@
 package com.example.bluetoothtest
 
 import android.app.Service
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCallback
-import android.bluetooth.BluetoothProfile
+import android.bluetooth.*
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import com.example.bluetoothtest.MainActivity.Companion.CONTENT_CHARACTERISTIC_UUID
 
 class BluetoothLeService : Service() {
 
@@ -46,6 +44,29 @@ class BluetoothLeService : Service() {
         sendBroadcast(intent)
     }
 
+    private fun broadcastUpdate(action: String, characteristic: BluetoothGattCharacteristic) {
+        val intent = Intent(action)
+        when (characteristic.uuid) {
+            CONTENT_CHARACTERISTIC_UUID -> {
+                val dataValue = characteristic.getStringValue(0)
+
+                println(String.format("Received data value: %d", dataValue))
+                intent.putExtra("EXTRA_DATA", dataValue)
+            }
+            else -> {
+                // For all other profiles, writes the data formatted in HEX.
+                val data: ByteArray? = characteristic.value
+                if (data?.isNotEmpty() == true) {
+                    val hexString: String = data.joinToString(separator = " ") {
+                        String.format("%02X", it)
+                    }
+                    intent.putExtra("EXTRA_DATA", "$data\n$hexString")
+                }
+            }
+        }
+        sendBroadcast(intent)
+    }
+
     private val bluetoothGattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -59,6 +80,37 @@ class BluetoothLeService : Service() {
                 connectionState = STATE_DISCONNECTED
                 broadcastUpdate(ACTION_GATT_DISCONNECTED)
             }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED)
+            } else {
+                println("onServicesDiscovered received: $status")
+            }
+        }
+
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                broadcastUpdate(ACTION_GATT_DATA_AVAILABLE, characteristic)
+            }
+        }
+    }
+
+    fun getSupportedGattServices(): List<BluetoothGattService?>? {
+        return bluetoothGatt?.services
+    }
+
+    fun readCharacteristic(characteristic: BluetoothGattCharacteristic) {
+        bluetoothGatt?.let { gatt ->
+            gatt.readCharacteristic(characteristic)
+        } ?: run {
+            println("BluetoothGatt not initialized")
+            return
         }
     }
 
@@ -91,6 +143,10 @@ class BluetoothLeService : Service() {
             "com.example.bluetooth.le.ACTION_GATT_CONNECTED"
         const val ACTION_GATT_DISCONNECTED =
             "com.example.bluetooth.le.ACTION_GATT_DISCONNECTED"
+        const val ACTION_GATT_SERVICES_DISCOVERED =
+            "com.example.bluetooth.le.ACTION_GATT_SERVICES_DISCOVERED"
+        const val ACTION_GATT_DATA_AVAILABLE =
+            "com.example.bluetooth.le.ACTION_GATT_DATA_AVAILABLE"
 
         private const val STATE_DISCONNECTED = 0
         private const val STATE_CONNECTED = 2

@@ -59,6 +59,30 @@ class MainActivity : AppCompatActivity() {
                 BluetoothLeService.ACTION_GATT_DISCONNECTED -> {
                     println("disconnected from the gatt!!! activity knows")
                 }
+                BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED -> {
+                    // Show all the supported services and characteristics on the user interface.
+                    getDataByGattServiceForCharacteristic(bluetoothService?.getSupportedGattServices())
+                }
+                BluetoothLeService.ACTION_GATT_DATA_AVAILABLE -> {
+                    dataCheck(intent)
+                }
+            }
+        }
+    }
+
+    private fun dataCheck(intent: Intent) {
+        val data = intent.getStringExtra("EXTRA_DATA")
+        print("We were successful. The data is: $data")
+    }
+
+
+    private fun getDataByGattServiceForCharacteristic(gattServices: List<BluetoothGattService?>?) {
+        if (gattServices == null) return
+
+        gattServices.forEach { gattService ->
+            if (gattService?.uuid == SERVICE_UUID) {
+                bluetoothService?.readCharacteristic(gattService.getCharacteristic(CONTENT_CHARACTERISTIC_UUID))
+                return
             }
         }
     }
@@ -97,11 +121,6 @@ class MainActivity : AppCompatActivity() {
 
     private var bluetoothGattServer: BluetoothGattServer? = null
     private val registeredDevices = mutableSetOf<BluetoothDevice>()
-    private val SERVICE_UUID: UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
-    private val CONTENT_CHARACTERISTIC_UUID: UUID = UUID.fromString("4AED2DB1-2537-4D7B-A2AA-46708B4F7563")
-
-    //TODO: What is this? Is this the same as iOS content share uuid?
-    private val CONTENT_CONFIG_DESCRIPTION_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     private val gattServerCallback = object : BluetoothGattServerCallback() {
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
@@ -202,7 +221,8 @@ class MainActivity : AppCompatActivity() {
             BluetoothGattService.SERVICE_TYPE_PRIMARY)
 
         // Current Time characteristic
-        val contentCharacteristic = BluetoothGattCharacteristic(CONTENT_CHARACTERISTIC_UUID,
+        val contentCharacteristic = BluetoothGattCharacteristic(
+            CONTENT_CHARACTERISTIC_UUID,
             //Read-only characteristic, supports notifications
             BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
             BluetoothGattCharacteristic.PERMISSION_READ)
@@ -672,5 +692,13 @@ class MainActivity : AppCompatActivity() {
 
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(receiver)
+    }
+
+    companion object {
+        val CONTENT_CHARACTERISTIC_UUID: UUID = UUID.fromString("4AED2DB1-2537-4D7B-A2AA-46708B4F7563")
+        val SERVICE_UUID: UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
+
+        //TODO: What is this? Is this the same as iOS content share uuid?
+        val CONTENT_CONFIG_DESCRIPTION_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 }
