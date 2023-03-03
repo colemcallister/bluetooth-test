@@ -106,9 +106,9 @@ class MainActivity : AppCompatActivity() {
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.i(TAG, "BluetoothDevice CONNECTED: $device")
+                println("BluetoothDevice CONNECTED: $device")
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
+                println("BluetoothDevice DISCONNECTED: $device")
                 //Remove device from any active subscriptions
                 registeredDevices.remove(device)
             }
@@ -626,6 +626,7 @@ class MainActivity : AppCompatActivity() {
             // Android 12 +
             requestMultiplePermissions.launch(arrayOf(
                 Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_ADVERTISE,
                 Manifest.permission.BLUETOOTH,
                 Manifest.permission.BLUETOOTH_CONNECT))
         } else {
