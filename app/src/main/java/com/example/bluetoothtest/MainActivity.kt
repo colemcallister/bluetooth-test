@@ -179,7 +179,7 @@ class MainActivity : AppCompatActivity() {
             BluetoothGattCharacteristic.PERMISSION_READ)
 
         //TODO: Is descriptor needed?
-        val configDescriptor = BluetoothGattDescriptor(CONTENT_CONFIG_DESCRIPTION_UUID,
+        val configDescriptor = BluetoothGattDescriptor(SERVICE_UUID,
             //Read/write descriptor
             BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE)
         contentCharacteristic.addDescriptor(configDescriptor)
@@ -203,7 +203,7 @@ class MainActivity : AppCompatActivity() {
                 .build()
 
             val data = AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
+                .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
                 .addServiceUuid(ParcelUuid(SERVICE_UUID))
                 .build()
@@ -551,6 +551,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.leScanButton).setOnClickListener {
             scanLeDevice()
         }
+
+        findViewById<Button>(R.id.startLeServer).setOnClickListener {
+            startAdvertising()
+            startServer()
+        }
     }
 
     private fun broadcastBluetooth() {
@@ -594,20 +599,11 @@ class MainActivity : AppCompatActivity() {
                 val deviceName = device.name
                 val deviceHardwareAddress = device.address // MAC address
             }
-
-
-            //TODO: Bad place to have it, but we have permissions
-            startServer()
-            startAdvertising()
         } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
             if (bluetoothAdapter?.isDiscovering == true) {
                 bluetoothAdapter?.cancelDiscovery()
             }
             bluetoothAdapter?.startDiscovery()
-
-            //TODO: Bad place to have it, but we have permissions
-            startServer()
-            startAdvertising()
         } else {
             println("We don't have permission")
         }
