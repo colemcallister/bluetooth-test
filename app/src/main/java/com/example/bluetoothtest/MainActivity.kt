@@ -3,11 +3,7 @@ package com.example.bluetoothtest
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.*
-import android.bluetooth.le.BluetoothLeScanner
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
+import android.bluetooth.le.*
 import android.content.BroadcastReceiver
 import android.content.ContentValues.TAG
 import android.content.Context
@@ -33,6 +29,7 @@ class MainActivity : AppCompatActivity() {
     private var bluetoothLeScanner: BluetoothLeScanner? = null
     private var scanning = false
     private val leHandler = Handler()
+    var bluetoothGatt: BluetoothGatt? = null
 
     // Stops scanning after 10 seconds.
     private val SCAN_PERIOD: Long = 10000
@@ -46,7 +43,7 @@ class MainActivity : AppCompatActivity() {
             scanning = true
 
             val filterList = listOf<ScanFilter>(
-                ScanFilter.Builder().setServiceUuid(ParcelUuid(BT_UUID)).build()
+                ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE_UUID)).build()
             )
 
             bluetoothLeScanner?.startScan(filterList, ScanSettings.Builder().build(), leScanCallback)
@@ -65,10 +62,165 @@ class MainActivity : AppCompatActivity() {
     }
 
 
+    //TODO: Create service
+    //TODO: Advertise
 
 
+    private var bluetoothGattServer: BluetoothGattServer? = null
+    private val registeredDevices = mutableSetOf<BluetoothDevice>()
+    private val SERVICE_UUID: UUID = UUID.fromString("5AE3B36E-16DB-4732-B2FB-B76CCFE30F89")
+    private val CONTENT_CHARACTERISTIC_UUID: UUID = UUID.fromString("4AED2DB1-2537-4D7B-A2AA-46708B4F7563")
+
+    //TODO: What is this? Is this the same as iOS content share uuid?
+    private val CONTENT_CONFIG_DESCRIPTION_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+    private val gattServerCallback = object : BluetoothGattServerCallback() {
+
+        override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                Log.i(TAG, "BluetoothDevice CONNECTED: $device")
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
+                //Remove device from any active subscriptions
+                registeredDevices.remove(device)
+            }
+        }
+
+        override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int,
+                                                 characteristic: BluetoothGattCharacteristic) {
+            val now = System.currentTimeMillis()
+            when (characteristic.uuid) {
+                CONTENT_CHARACTERISTIC_UUID -> {
+                    Log.i(TAG, "Read CurrentTime")
+                    bluetoothGattServer?.sendResponse(device,
+                        requestId,
+                        BluetoothGatt.GATT_SUCCESS,
+                        0,
+                        "send something else".toByteArray())
+                }
+                else -> {
+                    // Invalid characteristic
+                    Log.w(TAG, "Invalid Characteristic Read: " + characteristic.uuid)
+                    bluetoothGattServer?.sendResponse(device,
+                        requestId,
+                        BluetoothGatt.GATT_FAILURE,
+                        0,
+                        null)
+                }
+            }
+        }
+
+        override fun onDescriptorReadRequest(device: BluetoothDevice, requestId: Int, offset: Int,
+                                             descriptor: BluetoothGattDescriptor) {
+            if (CONTENT_CONFIG_DESCRIPTION_UUID == descriptor.uuid) {
+                Log.d(TAG, "Config descriptor read")
+                val returnValue = if (registeredDevices.contains(device)) {
+                    BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                } else {
+                    BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+                }
+                bluetoothGattServer?.sendResponse(device,
+                    requestId,
+                    BluetoothGatt.GATT_SUCCESS,
+                    0,
+                    returnValue)
+            } else {
+                Log.w(TAG, "Unknown descriptor read request")
+                bluetoothGattServer?.sendResponse(device,
+                    requestId,
+                    BluetoothGatt.GATT_FAILURE,
+                    0, null)
+            }
+        }
+
+        override fun onDescriptorWriteRequest(device: BluetoothDevice, requestId: Int,
+                                              descriptor: BluetoothGattDescriptor,
+                                              preparedWrite: Boolean, responseNeeded: Boolean,
+                                              offset: Int, value: ByteArray) {
+            if (CONTENT_CONFIG_DESCRIPTION_UUID == descriptor.uuid) {
+                if (Arrays.equals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE, value)) {
+                    Log.d(TAG, "Subscribe device to notifications: $device")
+                    registeredDevices.add(device)
+                } else if (Arrays.equals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE, value)) {
+                    Log.d(TAG, "Unsubscribe device from notifications: $device")
+                    registeredDevices.remove(device)
+                }
+
+                if (responseNeeded) {
+                    bluetoothGattServer?.sendResponse(device,
+                        requestId,
+                        BluetoothGatt.GATT_SUCCESS,
+                        0, null)
+                }
+            } else {
+                Log.w(TAG, "Unknown descriptor write request")
+                if (responseNeeded) {
+                    bluetoothGattServer?.sendResponse(device,
+                        requestId,
+                        BluetoothGatt.GATT_FAILURE,
+                        0, null)
+                }
+            }
+        }
+    }
+
+    fun startServer() {
+        bluetoothGattServer = bluetoothManager?.openGattServer(this, gattServerCallback)
+        bluetoothGattServer?.addService(createGattService())
+    }
+
+    fun createGattService(): BluetoothGattService {
+        val service = BluetoothGattService(SERVICE_UUID,
+            BluetoothGattService.SERVICE_TYPE_PRIMARY)
+
+        // Current Time characteristic
+        val contentCharacteristic = BluetoothGattCharacteristic(CONTENT_CHARACTERISTIC_UUID,
+            //Read-only characteristic, supports notifications
+            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+            BluetoothGattCharacteristic.PERMISSION_READ)
+
+        //TODO: Is descriptor needed?
+        val configDescriptor = BluetoothGattDescriptor(CONTENT_CONFIG_DESCRIPTION_UUID,
+            //Read/write descriptor
+            BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE)
+        contentCharacteristic.addDescriptor(configDescriptor)
 
 
+        service.addCharacteristic(contentCharacteristic)
+
+        return service
+    }
+
+    private fun startAdvertising() {
+        val bluetoothLeAdvertiser: BluetoothLeAdvertiser? =
+            bluetoothManager?.adapter?.bluetoothLeAdvertiser
+
+        bluetoothLeAdvertiser?.let {
+            val settings = AdvertiseSettings.Builder()
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+                .setConnectable(true)
+                .setTimeout(0)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+                .build()
+
+            val data = AdvertiseData.Builder()
+                .setIncludeDeviceName(true)
+                .setIncludeTxPowerLevel(false)
+                .addServiceUuid(ParcelUuid(SERVICE_UUID))
+                .build()
+
+            it.startAdvertising(settings, data, advertiseCallback)
+        } ?: Log.w(TAG, "Failed to create advertiser")
+    }
+
+    private val advertiseCallback = object : AdvertiseCallback() {
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+            Log.i(TAG, "LE Advertise Started.")
+        }
+
+        override fun onStartFailure(errorCode: Int) {
+            Log.w(TAG, "LE Advertise Failed: $errorCode")
+        }
+    }
 
 
 
@@ -281,8 +433,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val bluetoothManager: BluetoothManager = getSystemService(BluetoothManager::class.java)
-        bluetoothAdapter = bluetoothManager.getAdapter()
+        bluetoothManager = getSystemService(BluetoothManager::class.java)
+        bluetoothAdapter = bluetoothManager?.adapter
         bluetoothLeScanner = bluetoothAdapter?.bluetoothLeScanner
         if (bluetoothAdapter == null) {
             println("No bluetooth")
@@ -325,6 +477,7 @@ class MainActivity : AppCompatActivity() {
     private var connectThread: ConnectThread? = null
     private var connectedThread: ConnectedThread? = null
     private var bluetoothAdapter: BluetoothAdapter? = null
+    private var bluetoothManager: BluetoothManager? = null
 
     private var broadcastBluetooth = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         //TODO: look at result code
@@ -441,11 +594,20 @@ class MainActivity : AppCompatActivity() {
                 val deviceName = device.name
                 val deviceHardwareAddress = device.address // MAC address
             }
+
+
+            //TODO: Bad place to have it, but we have permissions
+            startServer()
+            startAdvertising()
         } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
             if (bluetoothAdapter?.isDiscovering == true) {
                 bluetoothAdapter?.cancelDiscovery()
             }
             bluetoothAdapter?.startDiscovery()
+
+            //TODO: Bad place to have it, but we have permissions
+            startServer()
+            startAdvertising()
         } else {
             println("We don't have permission")
         }
