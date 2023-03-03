@@ -5,17 +5,16 @@ import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.BroadcastReceiver
 import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.os.Handler
-import android.os.Message
+import android.os.*
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
@@ -45,7 +44,12 @@ class MainActivity : AppCompatActivity() {
                 bluetoothLeScanner?.stopScan(leScanCallback)
             }, SCAN_PERIOD)
             scanning = true
-            bluetoothLeScanner?.startScan(leScanCallback)
+
+            val filterList = listOf<ScanFilter>(
+                ScanFilter.Builder().setServiceUuid(ParcelUuid(BT_UUID)).build()
+            )
+
+            bluetoothLeScanner?.startScan(filterList, ScanSettings.Builder().build(), leScanCallback)
         } else {
             scanning = false
             bluetoothLeScanner?.stopScan(leScanCallback)
