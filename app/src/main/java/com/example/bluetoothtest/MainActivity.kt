@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Message
 import android.util.Log
 import android.widget.Button
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -27,20 +28,37 @@ import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
+    val MESSAGE_READ: Int = 0
+    val MESSAGE_WRITE: Int = 1
+    val MESSAGE_TOAST: Int = 2
+
     /**
      * Connect code
      */
     private val handler: Handler = object : Handler() {
         override fun handleMessage(msg: Message) {
-            println("We got a message")
+            when (msg.what) {
+                MESSAGE_READ -> {
+                    val passedMsg = String(msg.obj as ByteArray, 0, msg.arg1)
+                    val received = "We got a message: $passedMsg"
+                    println(received)
+                    Toast.makeText(
+                        this@MainActivity,
+                        received,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                MESSAGE_WRITE -> {
+                    println("message sent :)")
+                }
+                else -> {
+                    println("ERROR: How did we get here?")
+                }
+            }
         }
     }
 
-    private inner class ConnectedThread(private val mmSocket: BluetoothSocket) : Thread() {
-
-        val MESSAGE_READ: Int = 0
-        val MESSAGE_WRITE: Int = 1
-        val MESSAGE_TOAST: Int = 2
+    inner class ConnectedThread(private val mmSocket: BluetoothSocket) : Thread() {
 
         private val mmInStream: InputStream = mmSocket.inputStream
         private val mmOutStream: OutputStream = mmSocket.outputStream
@@ -133,6 +151,8 @@ class MainActivity : AppCompatActivity() {
                 println("Client connected to server socket! Good job!")
                 connectedThread?.cancel()
                 connectedThread = ConnectedThread(socket)
+
+                connectedThread?.start()
             }
         }
 
@@ -175,6 +195,7 @@ class MainActivity : AppCompatActivity() {
                     println("you are connected from the accept thread! Congrats!")
                     connectedThread?.cancel()
                     connectedThread = ConnectedThread(socket)
+                    connectedThread?.start()
 
                     mmServerSocket?.close()
                     shouldLoop = false
@@ -306,7 +327,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.sendMessageButton).setOnClickListener {
-            connectedThread?.start()
             connectedThread?.write("Hello world".toByteArray())
         }
     }
