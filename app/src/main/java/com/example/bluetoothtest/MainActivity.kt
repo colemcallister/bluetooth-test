@@ -4,11 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.*
-import android.content.BroadcastReceiver
+import android.content.*
 import android.content.ContentValues.TAG
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.*
 import android.util.Log
@@ -28,8 +25,8 @@ class MainActivity : AppCompatActivity() {
 
     private var bluetoothLeScanner: BluetoothLeScanner? = null
     private var scanning = false
-    private val leHandler = Handler()
-    var bluetoothGatt: BluetoothGatt? = null
+    private var bluetoothService : BluetoothLeService? = null
+    private var selectedDeviceAddress: String? = null
 
     // Stops scanning after 10 seconds.
     private val SCAN_PERIOD: Long = 10000
@@ -53,18 +50,50 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val gattUpdateReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                BluetoothLeService.ACTION_GATT_CONNECTED -> {
+                    println("Connected to the gatt!!! activity knows")
+                }
+                BluetoothLeService.ACTION_GATT_DISCONNECTED -> {
+                    println("disconnected from the gatt!!! activity knows")
+                }
+            }
+        }
+    }
+
     // Device scan callback.
     private val leScanCallback: ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
+
+            selectedDeviceAddress = result.device.address
+
             println("device found: ${result.device.name}")
         }
     }
 
+    // Code to manage Service lifecycle.
+    private val serviceConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(
+            componentName: ComponentName,
+            service: IBinder
+        ) {
+            bluetoothService = (service as BluetoothLeService.LocalBinder).getService()
+            bluetoothService?.let { bluetooth ->
+                if (!bluetooth.initialize()) {
+                    Log.e(TAG, "Unable to initialize Bluetooth")
+                    finish()
+                }
+                // perform device connection
+            }
+        }
 
-    //TODO: Create service
-    //TODO: Advertise
-
+        override fun onServiceDisconnected(componentName: ComponentName) {
+            bluetoothService = null
+        }
+    }
 
     private var bluetoothGattServer: BluetoothGattServer? = null
     private val registeredDevices = mutableSetOf<BluetoothDevice>()
@@ -433,6 +462,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        val gattServiceIntent = Intent(this, BluetoothLeService::class.java)
+        bindService(gattServiceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+
         bluetoothManager = getSystemService(BluetoothManager::class.java)
         bluetoothAdapter = bluetoothManager?.adapter
         bluetoothLeScanner = bluetoothAdapter?.bluetoothLeScanner
@@ -509,8 +541,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(gattUpdateReceiver)
+    }
+
+    private fun makeGattUpdateIntentFilter(): IntentFilter? {
+        return IntentFilter().apply {
+            addAction(BluetoothLeService.ACTION_GATT_CONNECTED)
+            addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+
+        registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter())
 
         if (acceptThread == null) {
             acceptThread = AcceptThread()
@@ -555,6 +601,13 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.startLeServer).setOnClickListener {
             startAdvertising()
             startServer()
+        }
+
+        findViewById<Button>(R.id.connectToLeServer).setOnClickListener {
+            if (bluetoothService != null) {
+                val result = bluetoothService!!.connect(selectedDeviceAddress ?: "")
+                println("Connect request result=$result")
+            }
         }
     }
 

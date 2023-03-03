@@ -56,4 +56,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/connectToLeServer"
+        android:text="Connect to LE Server"
+        app:layout_constraintTop_toBottomOf="@id/startLeServer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
