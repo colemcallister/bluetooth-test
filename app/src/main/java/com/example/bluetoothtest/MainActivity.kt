@@ -3,6 +3,9 @@ package com.example.bluetoothtest
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.*
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
 import android.content.BroadcastReceiver
 import android.content.ContentValues.TAG
 import android.content.Context
@@ -27,6 +30,59 @@ import java.util.*
 
 
 class MainActivity : AppCompatActivity() {
+
+    private var bluetoothLeScanner: BluetoothLeScanner? = null
+    private var scanning = false
+    private val leHandler = Handler()
+
+    // Stops scanning after 10 seconds.
+    private val SCAN_PERIOD: Long = 10000
+
+    private fun scanLeDevice() {
+        if (!scanning) { // Stops scanning after a pre-defined scan period.
+            handler.postDelayed({
+                scanning = false
+                bluetoothLeScanner?.stopScan(leScanCallback)
+            }, SCAN_PERIOD)
+            scanning = true
+            bluetoothLeScanner?.startScan(leScanCallback)
+        } else {
+            scanning = false
+            bluetoothLeScanner?.stopScan(leScanCallback)
+        }
+    }
+
+    // Device scan callback.
+    private val leScanCallback: ScanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            super.onScanResult(callbackType, result)
+            println("device found: ${result.device.name}")
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     val MESSAGE_READ: Int = 0
     val MESSAGE_WRITE: Int = 1
@@ -223,6 +279,7 @@ class MainActivity : AppCompatActivity() {
 
         val bluetoothManager: BluetoothManager = getSystemService(BluetoothManager::class.java)
         bluetoothAdapter = bluetoothManager.getAdapter()
+        bluetoothLeScanner = bluetoothAdapter?.bluetoothLeScanner
         if (bluetoothAdapter == null) {
             println("No bluetooth")
             // Device doesn't support Bluetooth
@@ -328,6 +385,14 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.sendMessageButton).setOnClickListener {
             connectedThread?.write("Hello world".toByteArray())
+        }
+
+
+
+
+
+        findViewById<Button>(R.id.leScanButton).setOnClickListener {
+            scanLeDevice()
         }
     }
 
