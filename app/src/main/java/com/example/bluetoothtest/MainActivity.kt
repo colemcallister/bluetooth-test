@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED -> {
                     // Show all the supported services and characteristics on the user interface.
+                    println("discovered the gatt!")
                     getDataByGattServiceForCharacteristic(bluetoothService?.getSupportedGattServices())
                 }
                 BluetoothLeService.ACTION_GATT_DATA_AVAILABLE -> {
@@ -77,6 +78,7 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun getDataByGattServiceForCharacteristic(gattServices: List<BluetoothGattService?>?) {
+        println("getDataByGattServiceForCharacteristic: Here")
         if (gattServices == null) return
 
         gattServices.forEach { gattService ->
@@ -570,6 +572,8 @@ class MainActivity : AppCompatActivity() {
         return IntentFilter().apply {
             addAction(BluetoothLeService.ACTION_GATT_CONNECTED)
             addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED)
+            addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED)
+            addAction(BluetoothLeService.ACTION_GATT_DATA_AVAILABLE)
         }
     }
 

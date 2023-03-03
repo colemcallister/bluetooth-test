@@ -50,7 +50,7 @@ class BluetoothLeService : Service() {
             CONTENT_CHARACTERISTIC_UUID -> {
                 val dataValue = characteristic.getStringValue(0)
 
-                println(String.format("Received data value: %d", dataValue))
+                println("Received data value: $dataValue")
                 intent.putExtra("EXTRA_DATA", dataValue)
             }
             else -> {
@@ -73,6 +73,8 @@ class BluetoothLeService : Service() {
                 println("We connected to the gatt service!")
                 // successfully connected to the GATT Server
                 connectionState = STATE_CONNECTED
+                //TODO: Maybe not best place to call this? Where else?
+                gatt.discoverServices()
                 broadcastUpdate(ACTION_GATT_CONNECTED)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 println("We failed to connect to the gatt service. we are losers")
@@ -84,6 +86,7 @@ class BluetoothLeService : Service() {
 
         override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                println("OnServiceDiscovered: Ahoy")
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED)
             } else {
                 println("onServicesDiscovered received: $status")
