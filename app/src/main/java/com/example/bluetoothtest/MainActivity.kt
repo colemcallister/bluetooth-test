@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.bluetoothtest.BluetoothLEConnectService.Companion.INTENT_BLUETOOTH_EXTRA_DATA
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -25,7 +26,7 @@ class MainActivity : AppCompatActivity() {
 
     private var bluetoothLeScanner: BluetoothLeScanner? = null
     private var scanning = false
-    private var bluetoothService : BluetoothLeService? = null
+    private var bluetoothService : BluetoothLEConnectService? = null
     private var selectedDeviceAddress: String? = null
 
     // Stops scanning after 10 seconds.
@@ -53,17 +54,17 @@ class MainActivity : AppCompatActivity() {
     private val gattUpdateReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                BluetoothLeService.ACTION_GATT_CONNECTED -> {
+                BluetoothLEConnectService.ACTION_GATT_CONNECTED -> {
                     println("Connected to the gatt!!! activity knows")
                 }
-                BluetoothLeService.ACTION_GATT_DISCONNECTED -> {
+                BluetoothLEConnectService.ACTION_GATT_DISCONNECTED -> {
                     println("disconnected from the gatt!!! activity knows")
                 }
-                BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED -> {
+                BluetoothLEConnectService.ACTION_GATT_SERVICES_DISCOVERED -> {
                     // Show all the supported services and characteristics on the user interface.
                     getDataByGattServiceForCharacteristic(bluetoothService?.getSupportedGattServices())
                 }
-                BluetoothLeService.ACTION_GATT_DATA_AVAILABLE -> {
+                BluetoothLEConnectService.ACTION_GATT_DATA_AVAILABLE -> {
                     dataCheck(intent)
                 }
             }
@@ -71,7 +72,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun dataCheck(intent: Intent) {
-        val data = intent.getStringExtra("EXTRA_DATA")
+        val data = intent.getStringExtra(INTENT_BLUETOOTH_EXTRA_DATA)
         print("We were successful. The data is: $data")
     }
 
@@ -104,7 +105,7 @@ class MainActivity : AppCompatActivity() {
             componentName: ComponentName,
             service: IBinder
         ) {
-            bluetoothService = (service as BluetoothLeService.LocalBinder).getService()
+            bluetoothService = (service as BluetoothLEConnectService.LocalBinder).getService()
             bluetoothService?.let { bluetooth ->
                 if (!bluetooth.initialize()) {
                     Log.e(TAG, "Unable to initialize Bluetooth")
@@ -482,7 +483,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val gattServiceIntent = Intent(this, BluetoothLeService::class.java)
+        val gattServiceIntent = Intent(this, BluetoothLEConnectService::class.java)
         bindService(gattServiceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
 
         bluetoothManager = getSystemService(BluetoothManager::class.java)
@@ -568,8 +569,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun makeGattUpdateIntentFilter(): IntentFilter? {
         return IntentFilter().apply {
-            addAction(BluetoothLeService.ACTION_GATT_CONNECTED)
-            addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED)
+            addAction(BluetoothLEConnectService.ACTION_GATT_CONNECTED)
+            addAction(BluetoothLEConnectService.ACTION_GATT_DISCONNECTED)
         }
     }
 

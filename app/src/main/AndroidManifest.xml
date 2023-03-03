@@ -45,7 +45,7 @@
                 android:value="" />
         </activity>
 
-        <service android:name=".BluetoothLeService" android:enabled="true" />
+        <service android:name=".BluetoothLEConnectService" android:enabled="true" />
     </application>
 
 </manifest>
